@@ -1,22 +1,77 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { KPICards } from './components/KPICards';
-import { parseExcelData } from './utils/excelParser';
+import { parseExcelData, parseExcelBuffer } from './utils/excelParser';
 import type { DashboardData, ModuleData } from './utils/excelParser';
-import { Layers, Activity, Server, Search, ChevronDown } from 'lucide-react';
+import { Layers, Activity, Server, Search, ChevronDown, Star, ChevronRight } from 'lucide-react';
 import { twMerge } from 'tailwind-merge';
+
+// Hardcoded Major Modules
+const MAJOR_MODULES_DEPLOYED = [
+  "House Keeping & Security(Flutter)",
+  "House Keeping & Security(Admin&Web App)",
+  "Parent Check - in Module",
+  "nScribe enhancements phase2",
+  "GPS Dashboard",
+  "GPS Device Management"
+];
+
+const MAJOR_MODULES_ONGOING = [
+  "Learning & Development",
+  "Retention Calling",
+  "Bus Tracking",
+  "Branch Analytics",
+  "AI Counsellor"
+];
 
 function App() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoLoading, setIsAutoLoading] = useState(true);
   
   // Explorer state
   const [activeFilter, setActiveFilter] = useState<string>('On Going');
   const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // Major Modules state
+  const [activeMajorFilter, setActiveMajorFilter] = useState<'Deployed' | 'On Going'>('Deployed');
+  const [isMajorDropdownOpen, setIsMajorDropdownOpen] = useState(false);
+
   const filters = ['On Going', 'Recently Deployed', 'Up Coming'];
+  const majorFilters = ['Deployed', 'On Going'] as const;
+
+  useEffect(() => {
+    const fetchDefaultData = async () => {
+      try {
+        const response = await fetch('./nConnect Module Status.xlsx');
+        if (!response.ok) throw new Error('Default file not found');
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const parsedData = await parseExcelBuffer(arrayBuffer);
+        setData(parsedData);
+        
+        const firstMajorName = MAJOR_MODULES_DEPLOYED[0];
+        const foundMajor = parsedData.modules.find(m => m.name.toLowerCase() === firstMajorName.toLowerCase());
+        
+        if (foundMajor) {
+          setSelectedModule(foundMajor);
+          setActiveFilter(foundMajor.category);
+        } else {
+          const activeModules = parsedData.modules.filter(m => m.category === 'On Going');
+          if (activeModules.length > 0) {
+            setSelectedModule(activeModules[0]);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load default dataset. User must upload manually.', err);
+      } finally {
+        setIsAutoLoading(false);
+      }
+    };
+    fetchDefaultData();
+  }, []);
 
   const handleUpload = async (file: File) => {
     setIsLoading(true);
@@ -24,10 +79,19 @@ function App() {
     try {
       const parsedData = await parseExcelData(file);
       setData(parsedData);
-      // Auto-select first module of active filter if available
-      const activeModules = parsedData.modules.filter(m => m.category === 'On Going');
-      if (activeModules.length > 0) {
-        setSelectedModule(activeModules[0]);
+      
+      // Auto-select first major module if available, else first regular module
+      const firstMajorName = MAJOR_MODULES_DEPLOYED[0];
+      const foundMajor = parsedData.modules.find(m => m.name.toLowerCase() === firstMajorName.toLowerCase());
+      
+      if (foundMajor) {
+        setSelectedModule(foundMajor);
+        setActiveFilter(foundMajor.category);
+      } else {
+        const activeModules = parsedData.modules.filter(m => m.category === 'On Going');
+        if (activeModules.length > 0) {
+          setSelectedModule(activeModules[0]);
+        }
       }
     } catch (err) {
       setError('Failed to parse the Excel file. Please make sure it is a valid execution sheet.');
@@ -38,6 +102,12 @@ function App() {
   };
 
   const filteredModules = data?.modules.filter(m => m.category === activeFilter) || [];
+  
+  // Only show major modules that ACTUALLY exist in the uploaded Excel sheet
+  const rawMajorList = activeMajorFilter === 'Deployed' ? MAJOR_MODULES_DEPLOYED : MAJOR_MODULES_ONGOING;
+  const currentMajorModulesList = rawMajorList.filter(modName => 
+    data?.modules.some(m => m.name.toLowerCase() === modName.toLowerCase())
+  );
 
   const handleFilterSelect = (filter: string) => {
     setActiveFilter(filter);
@@ -47,6 +117,28 @@ function App() {
       setSelectedModule(newActiveModules[0]);
     } else {
       setSelectedModule(null);
+    }
+  };
+
+  const handleMajorFilterSelect = (filter: 'Deployed' | 'On Going') => {
+    setActiveMajorFilter(filter);
+    setIsMajorDropdownOpen(false);
+  };
+
+  const handleMajorModuleClick = (moduleName: string) => {
+    const foundModule = data?.modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+    if (foundModule) {
+      setSelectedModule(foundModule);
+      setActiveFilter(foundModule.category);
+    } else {
+      // Fallback if not found in excel
+      setSelectedModule({
+        id: `mock-${moduleName}`,
+        name: moduleName,
+        category: activeMajorFilter === 'Deployed' ? 'Recently Deployed' : 'On Going',
+        status: 'Data Not Found',
+        feature: 'This module was not found in the currently uploaded Excel sheet. Please verify the spelling or upload an updated sheet.'
+      });
     }
   };
 
@@ -79,7 +171,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen relative bg-dashboard-bg">
+    <div className="min-h-screen relative bg-dashboard-bg pb-12">
       {/* Light Corporate Top Banner */}
       <div className="absolute top-0 left-0 right-0 h-[280px] bg-gradient-to-r from-accent-purple to-indigo-700 shadow-md" />
 
@@ -115,27 +207,109 @@ function App() {
 
         {!data ? (
           <div className="max-w-2xl mx-auto mt-24">
-            {isLoading ? (
+            {isLoading || isAutoLoading ? (
               <div className="flex flex-col items-center justify-center h-64 border-2 border-dashed border-slate-300 rounded-2xl bg-white shadow-lg">
                 <div className="w-8 h-8 border-4 border-accent-purple border-t-transparent rounded-full animate-spin mb-4" />
-                <p className="text-slate-600 font-semibold tracking-wide">Analyzing execution data...</p>
+                <p className="text-slate-600 font-semibold tracking-wide">
+                  {isAutoLoading ? 'Loading default data...' : 'Analyzing execution data...'}
+                </p>
               </div>
             ) : (
               <UploadZone onUpload={handleUpload} />
             )}
           </div>
         ) : (
-          <div className="animate-in fade-in duration-500">
+          <div className="animate-in fade-in duration-500 space-y-6">
             {/* Top KPIs */}
             <KPICards kpi={data.kpi} />
 
+            {/* MAJOR MODULES SECTION */}
+            <div className="bg-card-bg border border-card-border rounded-2xl p-5 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-accent-purple flex items-center justify-center border border-indigo-100">
+                    <Star className="w-4 h-4" />
+                  </div>
+                  <h2 className="text-lg font-bold text-text-main tracking-tight">Major Modules Highlights</h2>
+                </div>
+
+                {/* Major Modules Dropdown */}
+                <div className="relative w-full md:w-64">
+                  <button 
+                    onClick={() => setIsMajorDropdownOpen(!isMajorDropdownOpen)}
+                    className="w-full flex items-center justify-between px-4 py-2 bg-dashboard-bg border border-card-border rounded-lg text-sm font-semibold text-text-main hover:bg-card-hover transition-colors focus:outline-none focus:ring-2 focus:ring-accent-purple/50"
+                  >
+                    <span>Major Modules <span className="text-accent-purple">{activeMajorFilter}</span></span>
+                    <ChevronDown className={twMerge("w-4 h-4 text-slate-500 transition-transform", isMajorDropdownOpen && "rotate-180")} />
+                  </button>
+                  
+                  {isMajorDropdownOpen && (
+                    <div className="absolute z-30 w-full mt-2 bg-card-bg border border-card-border rounded-xl shadow-xl overflow-hidden py-1">
+                      {majorFilters.map(filter => (
+                        <button
+                          key={filter}
+                          onClick={() => handleMajorFilterSelect(filter)}
+                          className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-card-hover hover:text-text-main transition-colors flex items-center justify-between"
+                        >
+                          Major Modules {filter}
+                          {activeMajorFilter === filter && <div className="w-2 h-2 rounded-full bg-accent-purple" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Major Modules Grid */}
+              {currentMajorModulesList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center p-6 text-slate-400 bg-dashboard-bg/50 rounded-xl border border-dashed border-card-border">
+                  <Star className="w-6 h-6 mb-2 opacity-50" />
+                  <p className="text-sm font-medium">No major modules found in the current Excel sheet.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                  {currentMajorModulesList.map((modName, idx) => {
+                    const isActive = selectedModule?.name.toLowerCase() === modName.toLowerCase();
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => handleMajorModuleClick(modName)}
+                        className={twMerge(
+                          "text-left p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between min-h-[80px]",
+                          isActive 
+                            ? "bg-accent-purple text-white border-accent-purple shadow-md shadow-accent-purple/20" 
+                            : "bg-white border-card-border text-text-main hover:border-accent-purple hover:shadow-sm"
+                        )}
+                      >
+                        <span className={twMerge(
+                          "text-xs font-bold leading-tight",
+                          isActive ? "text-white" : "text-slate-700"
+                        )}>
+                          {modName}
+                        </span>
+                        <div className={twMerge(
+                          "self-end mt-2 p-1 rounded-full",
+                          isActive ? "bg-white/20" : "bg-dashboard-bg"
+                        )}>
+                          <ChevronRight className={twMerge(
+                            "w-3 h-3",
+                            isActive ? "text-white" : "text-slate-400"
+                          )} />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* 2-Column Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-320px)] min-h-[600px]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-420px)] min-h-[500px]">
               
               {/* LEFT COLUMN: Module Explorer */}
               <div className="lg:col-span-4 bg-card-bg border border-card-border rounded-2xl flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                 <div className="p-5 border-b border-card-border bg-card-bg">
-                  <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">Modules</h2>
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-text-muted mb-4">All Modules</h2>
                   
                   {/* Dropdown Filter */}
                   <div className="relative">
@@ -213,7 +387,10 @@ function App() {
                     <div className="p-8 border-b border-card-border bg-card-bg">
                       <h2 className="text-3xl font-extrabold text-text-main mb-5 tracking-tight">{selectedModule.name}</h2>
                       <div className="flex items-center gap-4">
-                        <span className="px-3.5 py-1.5 text-xs font-bold uppercase tracking-widest bg-accent-purple text-white rounded-md shadow-sm">
+                        <span className={twMerge(
+                          "px-3.5 py-1.5 text-xs font-bold uppercase tracking-widest text-white rounded-md shadow-sm",
+                          selectedModule.status === 'Data Not Found' ? 'bg-red-500' : 'bg-accent-purple'
+                        )}>
                           {selectedModule.status}
                         </span>
                         <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
@@ -225,7 +402,10 @@ function App() {
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-white">
                       <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-accent-purple"></div>
+                        <div className={twMerge(
+                          "w-1.5 h-1.5 rounded-full",
+                          selectedModule.status === 'Data Not Found' ? 'bg-red-500' : 'bg-accent-purple'
+                        )}></div>
                         Feature / Requirement Details
                       </h3>
                       <div 
