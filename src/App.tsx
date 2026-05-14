@@ -31,16 +31,16 @@ function App() {
   const [isAutoLoading, setIsAutoLoading] = useState(true);
   
   // Explorer state
-  const [activeFilter, setActiveFilter] = useState<string>('On Going');
+  const [activeFilter, setActiveFilter] = useState<string>('Ongoing');
   const [selectedModule, setSelectedModule] = useState<ModuleData | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Major Modules state
-  const [activeMajorFilter, setActiveMajorFilter] = useState<'Deployed' | 'On Going'>('Deployed');
+  const [activeMajorFilter, setActiveMajorFilter] = useState<'Deployed' | 'Ongoing'>('Deployed');
   const [isMajorDropdownOpen, setIsMajorDropdownOpen] = useState(false);
 
-  const filters = ['On Going', 'Recently Deployed', 'Up Coming'];
-  const majorFilters = ['Deployed', 'On Going'] as const;
+  const filters = ['Ongoing', 'Recently Deployed', 'Upcoming'];
+  const majorFilters = ['Deployed', 'Ongoing'] as const;
 
   useEffect(() => {
     const fetchDefaultData = async () => {
@@ -59,7 +59,7 @@ function App() {
           setSelectedModule(foundMajor);
           setActiveFilter(foundMajor.category);
         } else {
-          const activeModules = parsedData.modules.filter(m => m.category === 'On Going');
+          const activeModules = parsedData.modules.filter(m => m.category === 'Ongoing');
           if (activeModules.length > 0) {
             setSelectedModule(activeModules[0]);
           }
@@ -120,7 +120,7 @@ function App() {
     }
   };
 
-  const handleMajorFilterSelect = (filter: 'Deployed' | 'On Going') => {
+  const handleMajorFilterSelect = (filter: 'Deployed' | 'Ongoing') => {
     setActiveMajorFilter(filter);
     setIsMajorDropdownOpen(false);
   };
@@ -135,7 +135,7 @@ function App() {
       setSelectedModule({
         id: `mock-${moduleName}`,
         name: moduleName,
-        category: activeMajorFilter === 'Deployed' ? 'Recently Deployed' : 'On Going',
+        category: activeMajorFilter === 'Deployed' ? 'Recently Deployed' : 'Ongoing',
         status: 'Data Not Found',
         feature: 'This module was not found in the currently uploaded Excel sheet. Please verify the spelling or upload an updated sheet.'
       });
@@ -183,7 +183,7 @@ function App() {
                 <Activity className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-3xl font-bold text-white tracking-tight drop-shadow-sm">
-                NConnect <span className="font-medium opacity-90">Overview</span>
+                nConnect <span className="font-medium opacity-90">Overview</span>
               </h1>
             </div>
             <p className="text-indigo-100 text-sm ml-14 font-medium">Executive command center for module deployment tracking.</p>

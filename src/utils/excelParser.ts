@@ -5,7 +5,7 @@ export interface ModuleData {
   name: string;
   status: string;
   feature: string;
-  category: string; // 'On Going', 'Recently Deployed', 'Up Coming'
+  category: string; // 'Ongoing', 'Recently Deployed', 'Upcoming'
 }
 
 export interface DashboardData {
@@ -23,20 +23,20 @@ export function parseExcelBuffer(buffer: ArrayBuffer): Promise<DashboardData> {
       const data = new Uint8Array(buffer);
       const workbook = XLSX.read(data, { type: 'array' });
       
-      const targetSheets = {
-        'On Going': 'ongoing',
-        'Recently Deployed': 'deployed',
-        'Up Coming': 'upcoming'
-      };
+      const sheetMapping = [
+        { category: 'Ongoing', kpiKey: 'ongoing', possibleSheets: ['on going', 'ongoing'] },
+        { category: 'Recently Deployed', kpiKey: 'deployed', possibleSheets: ['recently deployed', 'deployed'] },
+        { category: 'Upcoming', kpiKey: 'upcoming', possibleSheets: ['up coming', 'upcoming'] }
+      ];
 
       const modules: ModuleData[] = [];
       const kpi = { ongoing: 0, deployed: 0, upcoming: 0 };
 
       const sheetNames = workbook.SheetNames;
       
-      Object.entries(targetSheets).forEach(([expectedName, kpiKey]) => {
-        // Find the actual sheet name that matches the expected one (case-insensitive)
-        const actualSheetName = sheetNames.find(sn => sn.toLowerCase() === expectedName.toLowerCase());
+      sheetMapping.forEach(({ category, kpiKey, possibleSheets }) => {
+        // Find the actual sheet name that matches one of the possible expected ones
+        const actualSheetName = sheetNames.find(sn => possibleSheets.includes(sn.toLowerCase()));
         
         if (actualSheetName) {
           const worksheet = workbook.Sheets[actualSheetName];
@@ -61,7 +61,7 @@ export function parseExcelBuffer(buffer: ArrayBuffer): Promise<DashboardData> {
                 name: String(name),
                 feature: String(row[featureCol] || ''),
                 status: String(row[statusCol] || 'Tasks'),
-                category: expectedName
+                category: category
               });
             }
           });

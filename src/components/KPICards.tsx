@@ -22,7 +22,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpi }) => {
           </span>
         </div>
         <div>
-          <p className="text-text-muted text-[11px] font-bold mb-1.5 uppercase tracking-widest">On Going</p>
+          <p className="text-text-muted text-[11px] font-bold mb-1.5 uppercase tracking-widest">Ongoing</p>
           <h3 className="text-3xl font-extrabold text-text-main tracking-tight">{kpi.ongoing}</h3>
         </div>
       </div>
@@ -54,7 +54,7 @@ export const KPICards: React.FC<KPICardsProps> = ({ kpi }) => {
           </span>
         </div>
         <div>
-          <p className="text-text-muted text-[11px] font-bold mb-1.5 uppercase tracking-widest">Up Coming</p>
+          <p className="text-text-muted text-[11px] font-bold mb-1.5 uppercase tracking-widest">Upcoming</p>
           <h3 className="text-3xl font-extrabold text-text-main tracking-tight">{kpi.upcoming}</h3>
         </div>
       </div>
