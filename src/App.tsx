@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { KPICards } from './components/KPICards';
 import { parseExcelData, parseExcelBuffer } from './utils/excelParser';
@@ -8,12 +8,12 @@ import { twMerge } from 'tailwind-merge';
 
 // Hardcoded Major Modules
 const MAJOR_MODULES_DEPLOYED = [
-  "House Keeping & Security(Flutter)",
-  "House Keeping & Security(Admin&Web App)",
+  "HouseKeeping & Security(Flutter)",
+  "HouseKeeping & Security(Admin&Web App)",
   "Parent Check - in Module",
-  "nScribe enhancements phase2",
+  "nScribe Enhancements phase2",
   "GPS Dashboard",
-  "GPS Device Management"
+  "GPS Device Management - nTransport"
 ];
 
 const MAJOR_MODULES_ONGOING = [
@@ -23,6 +23,17 @@ const MAJOR_MODULES_ONGOING = [
   "Branch Analytics",
   "AI Counsellor"
 ];
+
+// Helper to fix grammar and spelling mistakes from the Excel sheet
+const formatModuleName = (name: string) => {
+  return name
+    .replace('HouseKeeping', 'Housekeeping')
+    .replace('(Admin&Web App)', ' (Admin & Web App)')
+    .replace('Check - in', 'Check-in')
+    .replace('enhancements phase2', 'Enhancements Phase 2')
+    .replace('Enhancements phase2', 'Enhancements Phase 2')
+    .replace(' - nTransport', '');
+};
 
 function App() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -36,11 +47,11 @@ function App() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Major Modules state
-  const [activeMajorFilter, setActiveMajorFilter] = useState<'Deployed' | 'Ongoing'>('Deployed');
+  const [activeMajorFilter, setActiveMajorFilter] = useState<'Deployed' | 'Ongoing' | 'Upcoming'>('Deployed');
   const [isMajorDropdownOpen, setIsMajorDropdownOpen] = useState(false);
 
   const filters = ['Ongoing', 'Recently Deployed', 'Upcoming'];
-  const majorFilters = ['Deployed', 'Ongoing'] as const;
+  const majorFilters = ['Deployed', 'Ongoing', 'Upcoming'] as const;
 
   useEffect(() => {
     const fetchDefaultData = async () => {
@@ -104,10 +115,19 @@ function App() {
   const filteredModules = data?.modules.filter(m => m.category === activeFilter) || [];
   
   // Only show major modules that ACTUALLY exist in the uploaded Excel sheet
-  const rawMajorList = activeMajorFilter === 'Deployed' ? MAJOR_MODULES_DEPLOYED : MAJOR_MODULES_ONGOING;
-  const currentMajorModulesList = rawMajorList.filter(modName => 
-    data?.modules.some(m => m.name.toLowerCase() === modName.toLowerCase())
-  );
+  // Dynamically compute the major modules to display
+  const currentMajorModulesList = useMemo(() => {
+    if (!data) return [];
+    
+    if (activeMajorFilter === 'Upcoming') {
+      return data.modules.filter(m => m.category === 'Upcoming');
+    }
+    
+    const rawMajorList = activeMajorFilter === 'Deployed' ? MAJOR_MODULES_DEPLOYED : MAJOR_MODULES_ONGOING;
+    return rawMajorList.map(moduleName => {
+      return data.modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+    }).filter(Boolean) as ModuleData[];
+  }, [data, activeMajorFilter]);
 
   const handleFilterSelect = (filter: string) => {
     setActiveFilter(filter);
@@ -120,7 +140,7 @@ function App() {
     }
   };
 
-  const handleMajorFilterSelect = (filter: 'Deployed' | 'Ongoing') => {
+  const handleMajorFilterSelect = (filter: 'Deployed' | 'Ongoing' | 'Upcoming') => {
     setActiveMajorFilter(filter);
     setIsMajorDropdownOpen(false);
   };
@@ -131,14 +151,19 @@ function App() {
       setSelectedModule(foundModule);
       setActiveFilter(foundModule.category);
     } else {
-      // Fallback if not found in excel
+      // Fallback if not found
+      let mappedCategory = 'Ongoing';
+      if (activeMajorFilter === 'Deployed') mappedCategory = 'Recently Deployed';
+      if (activeMajorFilter === 'Upcoming') mappedCategory = 'Upcoming';
+
       setSelectedModule({
         id: `mock-${moduleName}`,
         name: moduleName,
-        category: activeMajorFilter === 'Deployed' ? 'Recently Deployed' : 'Ongoing',
+        category: mappedCategory,
         status: 'Data Not Found',
         feature: 'This module was not found in the currently uploaded Excel sheet. Please verify the spelling or upload an updated sheet.'
       });
+      setActiveFilter(mappedCategory);
     }
   };
 
@@ -268,24 +293,27 @@ function App() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-                  {currentMajorModulesList.map((modName, idx) => {
-                    const isActive = selectedModule?.name.toLowerCase() === modName.toLowerCase();
+                  {currentMajorModulesList.map((moduleItem, idx) => {
+                    const isActive = selectedModule?.name.toLowerCase() === moduleItem.name.toLowerCase();
                     return (
                       <button
                         key={idx}
-                        onClick={() => handleMajorModuleClick(modName)}
+                        onClick={() => handleMajorModuleClick(moduleItem.name)}
                         className={twMerge(
-                          "text-left p-3 rounded-xl border transition-all duration-200 flex flex-col justify-between min-h-[80px]",
+                          "relative group flex flex-col items-start p-4 bg-white rounded-xl border transition-all duration-300 text-left overflow-hidden min-h-[90px]",
                           isActive 
-                            ? "bg-accent-purple text-white border-accent-purple shadow-md shadow-accent-purple/20" 
-                            : "bg-white border-card-border text-text-main hover:border-accent-purple hover:shadow-sm"
+                            ? "border-accent-purple/50 shadow-md ring-1 ring-accent-purple bg-accent-purple text-white" 
+                            : "border-card-border hover:border-accent-purple/30 hover:shadow-md hover:-translate-y-0.5"
                         )}
                       >
+                        {isActive && (
+                          <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+                        )}
                         <span className={twMerge(
                           "text-xs font-bold leading-tight",
                           isActive ? "text-white" : "text-slate-700"
                         )}>
-                          {modName}
+                          {formatModuleName(moduleItem.name)}
                         </span>
                         <div className={twMerge(
                           "self-end mt-2 p-1 rounded-full",
@@ -364,7 +392,7 @@ function App() {
                           "font-semibold truncate pr-4 text-sm tracking-wide",
                           selectedModule?.id === module.id ? "text-accent-purple" : "text-text-main"
                         )}>
-                          {module.name}
+                          {formatModuleName(module.name)}
                         </span>
                         <span className={twMerge(
                           "shrink-0 px-2.5 py-1 text-[10px] uppercase tracking-widest font-bold rounded-md border",
@@ -385,7 +413,7 @@ function App() {
                 {selectedModule ? (
                   <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <div className="p-8 border-b border-card-border bg-card-bg">
-                      <h2 className="text-3xl font-extrabold text-text-main mb-5 tracking-tight">{selectedModule.name}</h2>
+                      <h2 className="text-3xl font-extrabold text-text-main mb-5 tracking-tight">{formatModuleName(selectedModule.name)}</h2>
                       <div className="flex items-center gap-4">
                         <span className={twMerge(
                           "px-3.5 py-1.5 text-xs font-bold uppercase tracking-widest text-white rounded-md shadow-sm",
