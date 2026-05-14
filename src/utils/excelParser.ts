@@ -56,11 +56,15 @@ export function parseExcelBuffer(buffer: ArrayBuffer): Promise<DashboardData> {
             const name = row[nameCol];
             if (name && String(name).trim() !== '') {
               count++;
+              
+              let normalizedStatus = String(row[statusCol] || 'Tasks');
+              normalizedStatus = normalizedStatus.replace(/on\s+going/i, 'Ongoing').replace(/up\s+coming/i, 'Upcoming');
+
               modules.push({
                 id: `${kpiKey}-${index}`,
                 name: String(name),
                 feature: String(row[featureCol] || ''),
-                status: String(row[statusCol] || 'Tasks'),
+                status: normalizedStatus,
                 category: category
               });
             }
